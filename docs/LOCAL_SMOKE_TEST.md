@@ -115,3 +115,43 @@ requiere resolver fuentes vigentes y validar el matching articulo por articulo.
 
 Se verifico tambien que la ejecucion normal no deje contenedores corriendo cuando
 la cola no tiene pendientes procesables.
+
+## Reejecucion De Fallback De Diffs
+
+Fecha: 2026-06-04
+
+Se ejecuto el procesador contra la cola productiva de jobs
+`RESOLVE_DIFF_FALLBACK`, creada por el endpoint operativo del backend
+`POST /processing-review/diffs/resolve`.
+
+Condicion previa:
+
+```text
+PENDING RESOLVE_DIFF_FALLBACK = 36
+```
+
+Resultado del procesador:
+
+```text
+status = DRAINED
+processedJobCount = 36
+terminalStatus = NEEDS_REVIEW
+```
+
+La salida `NEEDS_REVIEW` es esperada para este tipo de job: el procesador remoto
+entrega evidencia estructurada y sugerencias, pero no aprueba juridicamente el
+diff. El backend vuelve a procesar esa salida por una segunda pasada
+deterministica y publica el diff con estado visible.
+
+Resultado posterior en backend:
+
+```text
+DIFF_VALIDATED = 7
+DIFF_AI_ASSISTED = 29
+DIFF_PARTIAL = 0
+DIFF_UNRESOLVED = 0
+PENDING = 0
+FAILED = 0
+```
+
+Al finalizar, `docker compose ps` no mostro contenedores activos.

@@ -9,7 +9,7 @@ abre puertos, no requiere IP fija y no publica datos directamente.
 ## Estado actual
 
 Este primer vertical slice procesa jobs `GENERATE_DIFF_CANDIDATES` de Senado de
-forma deterministica:
+forma deterministica y jobs `RESOLVE_DIFF_FALLBACK` como segunda linea de apoyo:
 
 - descarga PDF desde fuente oficial;
 - calcula hash del documento;
@@ -20,16 +20,20 @@ forma deterministica:
 - devuelve referencias canonicas y evidencia textual para cada norma afectada;
 - devuelve artifacts y candidatos de diff en estado `NEEDS_REVIEW` cuando falta
   texto vigente.
+- para `RESOLVE_DIFF_FALLBACK`, devuelve hints estructurados para que el backend
+  ejecute una segunda pasada deterministica.
 
-Ollama queda soportado por configuracion, pero no es requerido para el primer
-flujo deterministico. OCR con Tesseract queda activado por defecto en la imagen
-local, porque varios PDFs oficiales son escaneados.
+Ollama queda soportado por configuracion para el fallback, pero no es requerido
+para el flujo deterministico. Si Ollama no esta habilitado, el fallback devuelve
+una sugerencia conservadora basada en la evidencia recibida. OCR con Tesseract
+queda activado por defecto en la imagen local, porque varios PDFs oficiales son
+escaneados.
 
 Las leyes detectadas no quedan aprobadas por el procesador. Se devuelven como
 `affectedLegalItems` candidatos con `canonicalReferenceText`,
 `detectionEvidence`, `reviewReason` y `sourceStatus`. LexMapa debe resolver
-fuente vigente, validar matching articulo por articulo y promover explicitamente
-antes de publicar un diff.
+fuente vigente, validar matching articulo por articulo y clasificar el diff como
+validado, parcial, asistido o no resuelto antes de mostrarlo.
 
 ```powershell
 docker build --build-arg INSTALL_OCR=true -t lexmapa/legal-remote-processor:local-ocr .

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,10 +15,137 @@ from .validators.result import validate_job_result
 
 def process_job(job: dict[str, Any], config: ProcessorConfig) -> dict[str, Any]:
     job_type = job.get("jobType")
+    if job_type == "RESOLVE_DIFF_FALLBACK":
+        return process_resolve_diff_fallback(job, config)
     if job_type != "GENERATE_DIFF_CANDIDATES":
         return not_comparable_result(job, f"Unsupported job type: {job_type}")
 
     return process_generate_diff_candidates(job, config)
+
+
+def process_resolve_diff_fallback(job: dict[str, Any], config: ProcessorConfig) -> dict[str, Any]:
+    job_input = job.get("input", {})
+    candidate = job_input.get("candidate", {})
+    resolution = job_input.get("resolution", {})
+    ai_suggestion = suggest_with_ollama(job_input, config) if config.enable_ollama and config.ollama_model else {}
+    fallback = build_fallback_resolution(candidate, resolution, ai_suggestion)
+    warnings = [
+        "REMOTE_DIFF_FALLBACK_USED: el candidato no pudo cerrarse solo con el primer pase deterministico.",
+        *fallback.get("validationWarnings", []),
+    ]
+    if not ai_suggestion:
+        warnings.append("OLLAMA_NOT_USED: fallback remoto ejecutado en modo deterministico conservador.")
+
+    return {
+        "status": "NEEDS_REVIEW",
+        "result": {"fallbackDiffResolutions": [fallback]},
+        "artifacts": [
+            {
+                "artifactType": "VALIDATION_REPORT",
+                "content": {
+                    "jobId": job.get("id"),
+                    "candidateId": fallback.get("candidateId"),
+                    "remoteAssisted": bool(ai_suggestion),
+                    "suggestion": fallback,
+                },
+            }
+        ],
+        "warnings": warnings,
+        "confidence": {
+            "ocr": 0,
+            "referenceResolution": 0.4,
+            "operationClassification": 0.4,
+            "diffGeneration": 0.3 if ai_suggestion else 0.2,
+        },
+    }
+
+
+def build_fallback_resolution(
+    candidate: dict[str, Any],
+    resolution: dict[str, Any],
+    ai_suggestion: dict[str, Any],
+) -> dict[str, Any]:
+    current_version = resolution.get("currentVersion") or {}
+    proposed_version = resolution.get("proposedVersion") or {}
+    operation_type = (
+        ai_suggestion.get("operationType")
+        or resolution.get("operationType")
+        or candidate.get("operationType")
+        or "UNKNOWN_OPERATION"
+    )
+    target_label = (
+        ai_suggestion.get("targetLabel")
+        or resolution.get("targetLabel")
+        or extract_article_label(candidate.get("evidenceText", ""))
+    )
+    validation_warnings = list(dict.fromkeys([
+        *(resolution.get("validationWarnings") or []),
+        *(candidate.get("validationWarnings") or []),
+        *(ai_suggestion.get("validationWarnings") or []),
+    ]))
+
+    return {
+        "candidateId": candidate.get("id"),
+        "title": ai_suggestion.get("title") or resolution.get("title") or candidate.get("title"),
+        "operationType": operation_type,
+        "changeType": ai_suggestion.get("changeType") or resolution.get("changeType") or candidate.get("changeType"),
+        "targetLabel": target_label,
+        "currentText": ai_suggestion.get("currentText") or current_version.get("text"),
+        "proposedText": ai_suggestion.get("proposedText") or proposed_version.get("text"),
+        "explanationPlainLanguage": ai_suggestion.get("explanationPlainLanguage")
+        or resolution.get("explanationPlainLanguage")
+        or "El procesador remoto genero una sugerencia de comparacion pendiente de validacion deterministica.",
+        "practicalImpact": ai_suggestion.get("practicalImpact")
+        or resolution.get("practicalImpact")
+        or "Usar como comparacion asistida, revisando fuentes y advertencias.",
+        "confidence": ai_suggestion.get("confidence") or "LOW",
+        "validationWarnings": validation_warnings,
+        "remoteAssisted": True,
+    }
+
+
+def suggest_with_ollama(job_input: dict[str, Any], config: ProcessorConfig) -> dict[str, Any]:
+    import requests
+
+    prompt = {
+        "task": "Sugerir un diff legal estructurado. No inventar fuentes. Responder solo JSON.",
+        "input": job_input,
+        "schema": {
+            "operationType": "string",
+            "changeType": "ADDED|REMOVED|MODIFIED",
+            "targetLabel": "string|null",
+            "currentText": "string|null",
+            "proposedText": "string|null",
+            "explanationPlainLanguage": "string",
+            "practicalImpact": "string",
+            "confidence": "LOW|MEDIUM|HIGH",
+            "validationWarnings": ["string"],
+        },
+    }
+    try:
+        response = requests.post(
+            f"{config.ollama_base_url}/api/generate",
+            json={
+                "model": config.ollama_model,
+                "prompt": json.dumps(prompt, ensure_ascii=False),
+                "stream": False,
+                "format": "json",
+            },
+            timeout=90,
+        )
+        response.raise_for_status()
+        raw = response.json().get("response", "{}")
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def extract_article_label(text: str) -> str | None:
+    match = re.search(r"\bart[íi]culo\s+(\d+[°º]?(?:\s*(?:bis|ter|quater))?)", str(text), re.IGNORECASE)
+    if not match:
+        return None
+    return f"Articulo {match.group(1).replace('°', '').replace('º', '').strip()}"
 
 
 def process_generate_diff_candidates(job: dict[str, Any], config: ProcessorConfig) -> dict[str, Any]:
