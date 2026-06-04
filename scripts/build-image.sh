@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-INSTALL_OCR="${INSTALL_OCR:-false}"
-docker build --build-arg INSTALL_OCR="$INSTALL_OCR" -t lexmapa-remote-processor:local .
+IMAGE_NAME="${LEXMAPA_PROCESSOR_IMAGE:-lexmapa/legal-remote-processor:local-ocr}"
+INSTALL_OCR="${INSTALL_OCR:-true}"
+docker build --build-arg INSTALL_OCR="$INSTALL_OCR" -t "$IMAGE_NAME" .

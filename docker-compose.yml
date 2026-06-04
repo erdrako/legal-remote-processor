@@ -1,8 +1,10 @@
 services:
   processor:
-    image: lexmapa-remote-processor:local
+    image: ${LEXMAPA_PROCESSOR_IMAGE:-lexmapa/legal-remote-processor:local-ocr}
     build:
       context: .
+      args:
+        INSTALL_OCR: ${INSTALL_OCR:-true}
     env_file:
       - .env
     volumes:

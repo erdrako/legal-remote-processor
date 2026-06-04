@@ -20,21 +20,26 @@ forma deterministica:
 - devuelve artifacts y candidatos de diff en estado `NEEDS_REVIEW` cuando falta
   texto vigente.
 
-Ollama y OCR quedan soportados por configuracion, pero no son requeridos para el
-primer flujo deterministico. La imagen Docker construye sin OCR por defecto para
-evitar descargas de paquetes del sistema cuando no hacen falta:
+Ollama queda soportado por configuracion, pero no es requerido para el primer
+flujo deterministico. OCR con Tesseract queda activado por defecto en la imagen
+local, porque varios PDFs oficiales son escaneados.
 
 ```powershell
-docker build --build-arg INSTALL_OCR=true -t lexmapa-remote-processor:local .
+docker build --build-arg INSTALL_OCR=true -t lexmapa/legal-remote-processor:local-ocr .
 ```
 
 ## Uso rapido
 
 ```powershell
-.\scripts\bootstrap.ps1
+.\scripts\setup.ps1
 .\scripts\enroll-local.ps1 -TokenFile ..\legal-infrastructure\private\remote-processor-tokens.generated.txt
-.\scripts\build-image.ps1
-.\scripts\run-once.ps1
+.\scripts\run.ps1
+```
+
+Para procesar un solo job y salir:
+
+```powershell
+.\scripts\run.ps1 -Once
 ```
 
 Vista operativa:
@@ -45,12 +50,18 @@ https://lexmapa.linqorait.com/ops
 
 ## Scripts
 
-- `scripts/bootstrap.ps1`: preflight de hardware/sistema y build local.
-- `scripts/build-image.ps1`: construye la imagen Docker.
+- `scripts/setup.ps1`: instalacion/setup inicial. Valida hardware minimo antes
+  de configurar, crea `.env`, puede instalar Docker/Ollama con `winget`, inicia
+  Docker Desktop si esta apagado y construye la imagen local.
+- `scripts/run.ps1`: ejecucion normal. Verifica que Docker este levantado,
+  intenta iniciarlo si no responde, construye la imagen si falta y arranca el
+  procesador.
+- `scripts/bootstrap.ps1`: wrapper de compatibilidad hacia `setup.ps1`.
+- `scripts/build-image.ps1`: construye la imagen Docker
+  `lexmapa/legal-remote-processor:local-ocr`.
 - `scripts\enroll-local.ps1`: enrole local usando token privado externo.
-- `scripts/run-once.ps1`: procesa un job y termina.
-- `scripts/run-processor.ps1`: levanta el procesador continuo con Docker
-  Compose.
+- `scripts/run-once.ps1`: wrapper hacia `run.ps1 -Once`.
+- `scripts/run-processor.ps1`: wrapper hacia `run.ps1`.
 - `scripts/doctor.ps1`: diagnostico local.
 
 Equivalentes `.sh` estan incluidos para Linux.

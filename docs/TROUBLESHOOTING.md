@@ -9,6 +9,13 @@ docker info
 ```
 
 Si Docker Desktop no esta iniciado, abrirlo y repetir `scripts\run-once.ps1`.
+El flujo recomendado es:
+
+```powershell
+.\scripts\run.ps1 -Once
+```
+
+Ese script intenta iniciar Docker Desktop automaticamente si esta instalado.
 
 ## `.env` faltante
 
@@ -25,11 +32,12 @@ comparaciones.
 
 ## El PDF no extrae texto
 
-Quedara advertido como `PDF_TEXT_TOO_SHORT`. En una fase posterior se activa
-OCR con Tesseract/OCRmyPDF y, opcionalmente, Ollama.
+Quedara advertido como `PDF_TEXT_TOO_SHORT` si el PDF no trae texto embebido y
+OCR no esta disponible. La imagen local recomendada ya incluye OCR con
+Tesseract.
 
 Para construir la imagen con Tesseract:
 
 ```powershell
-docker build --build-arg INSTALL_OCR=true -t lexmapa-remote-processor:local .
+.\scripts\build-image.ps1
 ```

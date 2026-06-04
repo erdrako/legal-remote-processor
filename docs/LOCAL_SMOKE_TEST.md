@@ -5,7 +5,7 @@ Fecha: 2026-06-03
 ## Entorno
 
 - Docker Desktop: disponible.
-- Imagen local: `lexmapa-remote-processor:local`.
+- Imagen local: `lexmapa/legal-remote-processor:local-ocr`.
 - OCR: Tesseract instalado dentro de la imagen con `INSTALL_OCR=true`.
 - Ollama: no instalado; flujo ejecutado en modo deterministico.
 
@@ -14,7 +14,7 @@ Fecha: 2026-06-03
 ```powershell
 python -m compileall src tests
 python tests\test_parser.py
-docker build --build-arg INSTALL_OCR=true -t lexmapa-remote-processor:local .
+docker build --build-arg INSTALL_OCR=true -t lexmapa/legal-remote-processor:local-ocr .
 docker compose run --rm processor python -m processor.main doctor
 docker compose run --rm processor python -m processor.main once
 ```
