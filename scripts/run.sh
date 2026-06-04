@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 IMAGE_NAME="${LEXMAPA_PROCESSOR_IMAGE:-lexmapa/legal-remote-processor:local-ocr}"
 INSTALL_OCR="${INSTALL_OCR:-true}"
 REBUILD="${REBUILD:-0}"
-MODE="${1:-worker}"
+MODE="${1:-drain}"
 
 wait_for_docker() {
   if docker info >/dev/null 2>&1; then
@@ -53,7 +53,12 @@ export LEXMAPA_PROCESSOR_IMAGE="$IMAGE_NAME"
 export INSTALL_OCR
 
 case "$MODE" in
+  drain)
+    docker compose rm --stop --force processor >/dev/null 2>&1 || true
+    docker compose run --rm processor python -m processor.main drain
+    ;;
   once)
+    docker compose rm --stop --force processor >/dev/null 2>&1 || true
     docker compose run --rm processor python -m processor.main once
     ;;
   worker)
@@ -62,7 +67,7 @@ case "$MODE" in
     echo "Ops: https://lexmapa.linqorait.com/ops"
     ;;
   *)
-    echo "Usage: ./scripts/run.sh [worker|once]" >&2
+    echo "Usage: ./scripts/run.sh [drain|once|worker]" >&2
     exit 2
     ;;
 esac

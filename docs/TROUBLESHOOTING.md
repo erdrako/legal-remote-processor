@@ -16,6 +16,12 @@ El flujo recomendado es:
 ```
 
 Ese script intenta iniciar Docker Desktop automaticamente si esta instalado.
+La ejecucion normal termina cuando no quedan pendientes en la cola. Si se uso
+modo permanente por error, detenerlo con:
+
+```powershell
+docker compose rm --stop --force processor
+```
 
 ## `.env` faltante
 

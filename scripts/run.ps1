@@ -1,5 +1,6 @@
 param(
   [switch]$Once,
+  [switch]$Continuous,
   [switch]$Rebuild,
   [switch]$NoOcr,
   [string]$ImageName = "lexmapa/legal-remote-processor:local-ocr",
@@ -53,6 +54,14 @@ function Test-DockerImage([string]$Name) {
   }
 }
 
+function Remove-ProcessorServiceContainer {
+  try {
+    docker compose rm --stop --force processor *> $null
+  } catch {
+    # No existing service container is a normal state for drain/once runs.
+  }
+}
+
 if (-not (Test-Path ".env")) {
   throw ".env no existe. Ejecuta .\scripts\setup.ps1 y luego enrola el procesador."
 }
@@ -76,9 +85,13 @@ $env:LEXMAPA_PROCESSOR_IMAGE = $ImageName
 $env:INSTALL_OCR = if ($NoOcr) { "false" } else { "true" }
 
 if ($Once) {
+  Remove-ProcessorServiceContainer
   docker compose run --rm processor python -m processor.main once
-} else {
+} elseif ($Continuous) {
   docker compose up -d processor
-  Write-Host "Procesador iniciado con imagen $ImageName."
+  Write-Host "Procesador continuo iniciado con imagen $ImageName."
   Write-Host "Estado operativo: https://lexmapa.linqorait.com/ops"
+} else {
+  Remove-ProcessorServiceContainer
+  docker compose run --rm processor python -m processor.main drain
 }

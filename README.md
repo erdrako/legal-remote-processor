@@ -36,10 +36,17 @@ docker build --build-arg INSTALL_OCR=true -t lexmapa/legal-remote-processor:loca
 .\scripts\run.ps1
 ```
 
-Para procesar un solo job y salir:
+`run.ps1` procesa jobs hasta que no queden pendientes y termina. Para procesar
+un solo job y salir:
 
 ```powershell
 .\scripts\run.ps1 -Once
+```
+
+Para dejar un procesador permanente haciendo polling:
+
+```powershell
+.\scripts\run.ps1 -Continuous
 ```
 
 Vista operativa:
@@ -54,14 +61,15 @@ https://lexmapa.linqorait.com/ops
   de configurar, crea `.env`, puede instalar Docker/Ollama con `winget`, inicia
   Docker Desktop si esta apagado y construye la imagen local.
 - `scripts/run.ps1`: ejecucion normal. Verifica que Docker este levantado,
-  intenta iniciarlo si no responde, construye la imagen si falta y arranca el
-  procesador.
+  intenta iniciarlo si no responde, construye la imagen si falta, procesa la
+  cola hasta quedar sin pendientes y termina.
 - `scripts/bootstrap.ps1`: wrapper de compatibilidad hacia `setup.ps1`.
 - `scripts/build-image.ps1`: construye la imagen Docker
   `lexmapa/legal-remote-processor:local-ocr`.
 - `scripts\enroll-local.ps1`: enrole local usando token privado externo.
 - `scripts/run-once.ps1`: wrapper hacia `run.ps1 -Once`.
-- `scripts/run-processor.ps1`: wrapper hacia `run.ps1`.
+- `scripts/run-processor.ps1`: wrapper hacia `run.ps1`; acepta `-Continuous`
+  para modo permanente.
 - `scripts/doctor.ps1`: diagnostico local.
 
 Equivalentes `.sh` estan incluidos para Linux.

@@ -23,6 +23,9 @@ def main(argv: list[str] | None = None) -> int:
     once_parser = subparsers.add_parser("once")
     once_parser.add_argument("--release-on-empty", action="store_true")
 
+    drain_parser = subparsers.add_parser("drain")
+    drain_parser.add_argument("--max-jobs", type=int, default=0)
+
     subparsers.add_parser("worker")
 
     args = parser.parse_args(argv)
@@ -56,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "once":
         return run_once(client, config)
 
+    if args.command == "drain":
+        return run_drain(client, config, max_jobs=args.max_jobs)
+
     if args.command == "worker":
         while True:
             result = run_once(client, config)
@@ -67,6 +73,38 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_once(client: LexMapaApiClient, config: ProcessorConfig) -> int:
+    run_once_status(client, config)
+    return 0
+
+
+def run_drain(client: LexMapaApiClient, config: ProcessorConfig, max_jobs: int = 0) -> int:
+    processed_jobs = 0
+
+    while True:
+        status = run_once_status(client, config)
+        if status == "IDLE":
+            print_json(
+                {
+                    "status": "DRAINED",
+                    "message": "No pending jobs. Processor will stop.",
+                    "processedJobCount": processed_jobs,
+                }
+            )
+            return 0
+
+        processed_jobs += 1
+        if max_jobs > 0 and processed_jobs >= max_jobs:
+            print_json(
+                {
+                    "status": "DRAIN_LIMIT_REACHED",
+                    "message": "Configured max job count reached.",
+                    "processedJobCount": processed_jobs,
+                }
+            )
+            return 0
+
+
+def run_once_status(client: LexMapaApiClient, config: ProcessorConfig) -> str:
     from .jobs import process_job
 
     client.heartbeat()
@@ -74,7 +112,7 @@ def run_once(client: LexMapaApiClient, config: ProcessorConfig) -> int:
     job = claim.get("job")
     if not job:
         print_json({"status": "IDLE", "message": "No pending jobs."})
-        return 0
+        return "IDLE"
 
     job_id = job["id"]
     try:
@@ -93,7 +131,7 @@ def run_once(client: LexMapaApiClient, config: ProcessorConfig) -> int:
                 "apiJobStatus": response.get("job", {}).get("status"),
             }
         )
-        return 0
+        return "SUBMITTED"
     except Exception as error:
         client.fail_job(
             job_id,
