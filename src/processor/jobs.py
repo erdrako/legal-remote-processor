@@ -37,7 +37,8 @@ def process_generate_diff_candidates(job: dict[str, Any], config: ProcessorConfi
     references = detect_references(pdf.text)
     operations = classify_operations(provisions, references)
     affected_items = build_affected_items(job, references, operations, retrieved_at)
-    diff_candidates = build_diff_candidates(job, provisions, operations, source_url, retrieved_at)
+    affected_item_ids = {item["legalItemId"]: item["id"] for item in affected_items if item.get("legalItemId")}
+    diff_candidates = build_diff_candidates(job, provisions, operations, affected_item_ids, source_url, retrieved_at)
     result_status = "NEEDS_REVIEW"
     warnings.append("CURRENT_TEXT_PENDING: falta resolver texto vigente para comparar articulo por articulo.")
 
@@ -47,7 +48,7 @@ def process_generate_diff_candidates(job: dict[str, Any], config: ProcessorConfi
             "affectedLegalItems": affected_items,
             "extractedProvisions": [
                 {
-                    "id": provision.id,
+                    "id": provision_id(job_id, provision.id),
                     "proposalId": proposal_id(job),
                     "legalItemId": None,
                     "provisionLabel": provision.label,
@@ -61,12 +62,13 @@ def process_generate_diff_candidates(job: dict[str, Any], config: ProcessorConfi
             ],
             "changeOperations": [
                 {
-                    "id": operation.id,
+                    "id": operation_id(job_id, operation.id),
                     "proposalId": proposal_id(job),
-                    "affectedLegalItemId": affected_items[0]["id"] if affected_items else None,
+                    "affectedLegalItemId": affected_item_ids.get(operation.target_reference_id)
+                    or (affected_items[0]["id"] if affected_items else None),
                     "operationType": operation.operation_type,
                     "detectedVerb": operation.detected_verb,
-                    "sourceProvisionId": operation.source_provision_id,
+                    "sourceProvisionId": provision_id(job_id, operation.source_provision_id),
                     "targetLegalItemId": operation.target_reference_id,
                     "targetProvisionId": None,
                     "evidenceText": operation.evidence_text,
@@ -165,7 +167,7 @@ def build_affected_items(
 
     return [
         {
-            "id": f"affected-{reference.id}",
+            "id": affected_item_id(job["id"], reference.id),
             "proposalId": proposal_id(job),
             "legalItemId": reference.id,
             "title": reference.label,
@@ -191,6 +193,7 @@ def build_diff_candidates(
     job: dict[str, Any],
     provisions: list[Any],
     operations: list[Any],
+    affected_item_ids: dict[str, str],
     source_url: str,
     retrieved_at: str,
 ) -> list[dict[str, Any]]:
@@ -201,18 +204,20 @@ def build_diff_candidates(
         provision = provision_by_id.get(operation.source_provision_id) or provisions[0]
         candidates.append(
             {
-                "id": f"diff-candidate-{index}",
+                "id": f"{job['id']}-diff-candidate-{index}",
                 "proposalId": proposal_id(job),
-                "operationId": operation.id,
-                "affectedLegalItemId": operation.target_reference_id,
+                "operationId": operation_id(job["id"], operation.id),
+                "affectedLegalItemId": affected_item_ids.get(operation.target_reference_id)
+                if operation.target_reference_id
+                else None,
                 "title": f"Candidato {index}: {operation.operation_type.replace('_', ' ').title()}",
                 "changeType": operation.change_type,
                 "currentVersion": None,
                 "proposedVersion": {
-                    "id": f"proposed-{provision.id}",
+                    "id": f"{job['id']}-proposed-{provision.id}",
                     "label": "Texto propuesto",
                     "legalItemTitle": job.get("sourceLabel") or "Proyecto Senado",
-                    "provisionId": provision.id,
+                    "provisionId": provision_id(job["id"], provision.id),
                     "provisionLabel": provision.label,
                     "text": provision.text,
                     "status": "PROPUESTO",
@@ -274,6 +279,18 @@ def find_source_url(job_input: dict[str, Any]) -> str:
 def proposal_id(job: dict[str, Any]) -> str:
     agenda_item = (job.get("input") or {}).get("agendaItem") or {}
     return str(agenda_item.get("id") or job.get("sourceLabel") or job["id"])
+
+
+def provision_id(job_id: str, raw_id: str) -> str:
+    return f"{job_id}-{raw_id}"
+
+
+def operation_id(job_id: str, raw_id: str) -> str:
+    return f"{job_id}-{raw_id}"
+
+
+def affected_item_id(job_id: str, reference_id: str) -> str:
+    return f"{job_id}-affected-{reference_id}"
 
 
 def now_iso() -> str:
