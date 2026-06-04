@@ -83,3 +83,35 @@ Nota operativa: el job historico `job-edcd1ed5-dff5-4ba6-a2ad-fd8debd11c77`
 quedo con artifacts pero sin filas estructuradas despues de limpiar las
 colisiones de IDs anteriores. Reencolarlo con esta version del procesador
 regenera su salida estructurada.
+
+## Reejecucion Con Evidencia De Normas Afectadas
+
+Fecha: 2026-06-04
+
+Se reencolo nuevamente `job-0a01cbd8-ac30-4530-883f-13009b722e1f` para validar
+la version que emite evidencia estructurada de normas afectadas y referencias
+canonicas.
+
+Comando ejecutado:
+
+```powershell
+.\scripts\run.ps1 -Once -Rebuild
+```
+
+Resultado:
+
+```text
+status = SUBMITTED
+jobId = job-0a01cbd8-ac30-4530-883f-13009b722e1f
+terminalStatus = NEEDS_REVIEW
+artifactCount = 5
+warningCount = 2
+apiJobStatus = NEEDS_REVIEW
+```
+
+La salida `NEEDS_REVIEW` es esperada: el procesador detecta referencias
+candidatas, texto propuesto y operaciones, pero la promocion a diff publico
+requiere resolver fuentes vigentes y validar el matching articulo por articulo.
+
+Se verifico tambien que la ejecucion normal no deje contenedores corriendo cuando
+la cola no tiene pendientes procesables.

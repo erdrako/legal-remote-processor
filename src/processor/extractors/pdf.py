@@ -5,9 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-
-import fitz
-import requests
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -26,6 +24,8 @@ def download_and_extract_pdf(source_url: str, data_dir: Path, job_id: str) -> Ex
     if not source_url.startswith(("http://", "https://")):
         raise ValueError(f"Unsupported source URL for processor job: {source_url}")
 
+    import requests
+
     data_dir.mkdir(parents=True, exist_ok=True)
     response = requests.get(source_url, timeout=120)
     response.raise_for_status()
@@ -37,6 +37,8 @@ def download_and_extract_pdf(source_url: str, data_dir: Path, job_id: str) -> Ex
     pages: list[str] = []
     ocr_used = False
     tesseract_available = shutil.which("tesseract") is not None
+    import fitz
+
     with fitz.open(stream=payload, filetype="pdf") as document:
         for index, page in enumerate(document, start=1):
             page_text = page.get_text("text").strip()
@@ -59,7 +61,9 @@ def download_and_extract_pdf(source_url: str, data_dir: Path, job_id: str) -> Ex
     )
 
 
-def ocr_page(page: fitz.Page, data_dir: Path, job_id: str, page_number: int) -> str:
+def ocr_page(page: Any, data_dir: Path, job_id: str, page_number: int) -> str:
+    import fitz
+
     image_path = data_dir / f"{job_id}-page-{page_number}.png"
     pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
     pixmap.save(image_path)

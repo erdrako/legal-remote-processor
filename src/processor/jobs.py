@@ -164,29 +164,57 @@ def build_affected_items(
     law_refs = [reference for reference in references if reference.kind == "LAW"]
     selected = law_refs[:50] or references[:10]
     default_operation = operations[0].operation_type if operations else "NEEDS_REVIEW"
+    operation_by_reference_id = {
+        operation.target_reference_id: operation
+        for operation in operations
+        if operation.target_reference_id
+    }
 
-    return [
-        {
-            "id": affected_item_id(job["id"], reference.id),
-            "proposalId": proposal_id(job),
-            "legalItemId": reference.id,
-            "title": reference.label,
-            "legalItemType": "LAW" if reference.kind == "LAW" else None,
-            "referenceText": reference.reference_text,
-            "operationType": default_operation,
-            "currentSource": {
-                "status": "PENDING",
-                "label": "Texto vigente original",
-                "retrievedAt": retrieved_at,
-                "official": True,
-                "note": "El procesador detecto la norma afectada, pero falta resolver el texto vigente oficial.",
-            },
-            "sourceStatus": "PENDING",
-            "affectedProvisionIds": [],
-            "notes": "Detectado automaticamente desde texto propuesto; requiere revision legal.",
-        }
-        for reference in selected
-    ]
+    items: list[dict[str, Any]] = []
+    for reference in selected:
+        operation = operation_by_reference_id.get(reference.id)
+        operation_type = operation.operation_type if operation else default_operation
+        evidence_text = operation.evidence_text if operation else reference.reference_text
+        detected_verb = operation.detected_verb if operation else ""
+        source_provision_id = provision_id(job["id"], operation.source_provision_id) if operation else None
+        confidence = operation.confidence if operation else "LOW"
+        review_reason = "Fuente vigente pendiente y matching articulo por articulo no validado."
+        items.append(
+            {
+                "id": affected_item_id(job["id"], reference.id),
+                "proposalId": proposal_id(job),
+                "legalItemId": reference.id,
+                "title": reference.label,
+                "legalItemType": "LAW" if reference.kind == "LAW" else None,
+                "referenceText": reference.reference_text,
+                "canonicalReferenceText": reference.canonical_label,
+                "operationType": operation_type,
+                "currentSource": {
+                    "status": "PENDING",
+                    "lawNumber": reference.normalized_number,
+                    "label": "Texto vigente original",
+                    "retrievedAt": retrieved_at,
+                    "official": True,
+                    "note": "El procesador detecto la norma afectada, pero falta resolver el texto vigente oficial.",
+                },
+                "sourceStatus": "PENDING",
+                "affectedProvisionIds": [],
+                "detectionEvidence": {
+                    "referenceText": reference.reference_text,
+                    "canonicalReferenceText": reference.canonical_label,
+                    "evidenceText": evidence_text,
+                    "detectedVerb": detected_verb,
+                    "sourceProvisionId": source_provision_id,
+                    "confidence": confidence,
+                    "requiresReview": True,
+                    "reviewReason": review_reason,
+                },
+                "reviewReason": review_reason,
+                "notes": "Referencia candidata detectada automaticamente desde texto propuesto.",
+            }
+        )
+
+    return items
 
 
 def build_diff_candidates(

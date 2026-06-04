@@ -17,12 +17,19 @@ forma deterministica:
 - segmenta articulos/provisiones por reglas;
 - detecta referencias legales basicas;
 - clasifica operaciones candidatas;
+- devuelve referencias canonicas y evidencia textual para cada norma afectada;
 - devuelve artifacts y candidatos de diff en estado `NEEDS_REVIEW` cuando falta
   texto vigente.
 
 Ollama queda soportado por configuracion, pero no es requerido para el primer
 flujo deterministico. OCR con Tesseract queda activado por defecto en la imagen
 local, porque varios PDFs oficiales son escaneados.
+
+Las leyes detectadas no quedan aprobadas por el procesador. Se devuelven como
+`affectedLegalItems` candidatos con `canonicalReferenceText`,
+`detectionEvidence`, `reviewReason` y `sourceStatus`. LexMapa debe resolver
+fuente vigente, validar matching articulo por articulo y promover explicitamente
+antes de publicar un diff.
 
 ```powershell
 docker build --build-arg INSTALL_OCR=true -t lexmapa/legal-remote-processor:local-ocr .
