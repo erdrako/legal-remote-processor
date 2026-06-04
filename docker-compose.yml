@@ -1,0 +1,10 @@
+services:
+  processor:
+    image: lexmapa-remote-processor:local
+    build:
+      context: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: ["python", "-m", "processor.main", "worker"]
